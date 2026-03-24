@@ -13,6 +13,11 @@ poetry run updog -d "/home/user/myfiles" -p 8080 --password 123
 poetry run updog -d "D:\myfiles" -p 8080 --password 123
 ```
 
+## Thanks
+
+A special thank you to [Nicholas Smith](http://nixmith.com) for
+designing the updog logo.
+
 <img width="1920" height="1080" alt="a" src="https://github.com/user-attachments/assets/a44d98ca-8c33-4fef-ab5d-1c776d06f630" />
 
 <img width="1920" height="1080" alt="b" src="https://github.com/user-attachments/assets/5dab5855-57dc-46ac-8e79-30b4402239e9" />
