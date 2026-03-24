@@ -389,7 +389,7 @@ def main():
     elif args.ssl_cert or args.ssl_key:
         error('Both --ssl-cert and --ssl-key must be provided together')
 
-    run_simple(args.bind, int(args.port), app, ssl_context=ssl_context)
+    run_simple(args.bind, int(args.port), app, ssl_context=ssl_context, threaded=True)
 
 
 if __name__ == '__main__':

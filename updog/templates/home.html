@@ -139,9 +139,9 @@
                     <span id="preview-filename">filename.txt</span>
                 </div>
                 <div class="preview-actions">
-                    <button class="btn btn-cancel" id="preview-download" title="Download">
+                    <a class="btn btn-cancel" id="preview-download" title="Download">
                         <i class="fas fa-download"></i>
-                    </button>
+                    </a>
                     <button class="btn btn-confirm" id="preview-save" style="display: none;">
                         <i class="fas fa-save"></i>
                         <span>Save</span>
@@ -687,6 +687,8 @@
                 downloadBtn.setAttribute('download', file.filename);
             }
 
+            updateDownloadLink();
+
             // Load track
             async function loadTrack(index) {
                 // Stop current playback first
@@ -698,7 +700,6 @@
                 audio.src = file.path;
                 titleEl.textContent = file.filename;
                 document.getElementById('media-filename').textContent = file.filename;
-                updateDownloadLink();
                 
                 // Reset cover
                 coverEl.innerHTML = '<i class="fas fa-music audio-cover-icon"></i>';
@@ -716,6 +717,9 @@
                 // Update prev/next button states
                 prevBtn.style.opacity = currentAudioIndex > 0 ? '1' : '0.5';
                 nextBtn.style.opacity = currentAudioIndex < currentAudioFiles.length - 1 ? '1' : '0.5';
+                
+                // Update download link
+                updateDownloadLink();
             }
 
             // Play track
