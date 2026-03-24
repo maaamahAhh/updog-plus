@@ -1,6 +1,7 @@
 import os
 import signal
 import argparse
+import shutil
 
 from flask import Flask, render_template, send_file, redirect, request, send_from_directory, url_for, abort
 from flask_httpauth import HTTPBasicAuth
@@ -120,13 +121,30 @@ def main():
             except PermissionError:
                 abort(403, 'Read Permission Denied: ' + requested_path)
 
-            # Hide base directory path if requested
+            # Hide base directory path if requested (for upload form)
             display_path = requested_path
             if args.hide_base_path:
                 display_path = requested_path[len(base_directory):] or '/'
 
+            # Calculate relative path for display
+            rel_path = os.path.relpath(requested_path, base_directory)
+            if rel_path == '.':
+                rel_path = '/'
+            else:
+                rel_path = '/' + rel_path.replace(os.sep, '/')
+
+            # Calculate disk usage
+            try:
+                disk = shutil.disk_usage(base_directory)
+                disk_free = disk.free
+                disk_total = disk.total
+            except:
+                disk_free = disk_total = 0
+
             return render_template('home.html', files=directory_files, back=back,
-                                   directory=display_path, is_subdirectory=is_subdirectory, version=VERSION)
+                                   directory=display_path, rel_path=rel_path,
+                                   disk_free=disk_free, disk_total=disk_total,
+                                   is_subdirectory=is_subdirectory, version=VERSION)
         else:
             return redirect('/')
 
@@ -169,6 +187,178 @@ def main():
                         abort(403, 'Write Permission Denied: ' + full_path)
 
             return redirect(request.referrer)
+
+    #############################
+    # Create Folder Functionality
+    #############################
+    @app.route('/api/mkdir', methods=['POST'])
+    @auth.login_required
+    def api_mkdir():
+        if request.method == 'POST':
+            if 'path' not in request.form or 'name' not in request.form:
+                return redirect(request.referrer)
+
+            path = request.form['path']
+            if args.hide_base_path:
+                path = base_directory + path
+
+            if not is_valid_upload_path(path, base_directory):
+                return redirect(request.referrer)
+
+            folder_name = secure_filename(request.form['name'])
+            if not folder_name:
+                return redirect(request.referrer)
+
+            new_path = os.path.join(path, folder_name)
+            try:
+                os.makedirs(new_path, exist_ok=False)
+            except FileExistsError:
+                pass
+            except PermissionError:
+                abort(403, 'Permission Denied')
+
+            return redirect(request.referrer)
+
+    #############################
+    # Delete Functionality
+    #############################
+    @app.route('/api/delete', methods=['POST'])
+    @auth.login_required
+    def api_delete():
+        if request.method == 'POST':
+            if 'path' not in request.form:
+                return redirect(request.referrer)
+
+            rel_path = request.form['path']
+            # Frontend sends relative path like '/folder/file.txt'
+            rel_path = rel_path.lstrip('/').replace('/', os.sep)
+            
+            # Always join with base_directory
+            path = os.path.join(base_directory, rel_path)
+
+            if not is_valid_subpath(rel_path, base_directory):
+                return redirect(request.referrer)
+
+            try:
+                if os.path.isfile(path):
+                    os.remove(path)
+                elif os.path.isdir(path):
+                    shutil.rmtree(path)
+            except PermissionError:
+                abort(403, 'Permission Denied')
+
+            return redirect(request.referrer)
+
+    #############################
+    # File Preview Functionality
+    #############################
+    @app.route('/api/preview/<path:file_path>')
+    @auth.login_required
+    def api_preview(file_path):
+        # Validate and get absolute path
+        rel_path = file_path.replace('/', os.sep)
+        path = os.path.join(base_directory, rel_path)
+        
+        if not is_valid_subpath(rel_path, base_directory):
+            abort(403, 'Access Denied')
+        
+        if not os.path.isfile(path):
+            abort(404, 'File not found')
+        
+        # Get file info
+        file_size = os.path.getsize(path)
+        filename = os.path.basename(path)
+        ext = os.path.splitext(path)[1].lower()
+        
+        # Text file extensions for preview/edit
+        text_extensions = {'.txt', '.md', '.json', '.jsonl', '.py', '.java', '.js', '.ts', '.html', '.css', '.scss', '.xml', '.yaml', '.yml', '.ini', '.cfg', '.conf', '.sh', '.bat', '.cmd', '.ps1', '.rs', '.go', '.c', '.cpp', '.h', '.hpp', '.cs', '.rb', '.php', '.sql', '.log'}
+        
+        # Image extensions
+        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico'}
+        
+        # Audio extensions
+        audio_extensions = {'.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac'}
+        
+        # Video extensions
+        video_extensions = {'.mp4', '.webm', '.mov', '.avi', '.mkv'}
+        
+        if ext in text_extensions:
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                return {
+                    'type': 'text',
+                    'filename': filename,
+                    'content': content,
+                    'ext': ext
+                }
+            except UnicodeDecodeError:
+                try:
+                    with open(path, 'r', encoding='latin-1') as f:
+                        content = f.read()
+                    return {
+                        'type': 'text',
+                        'filename': filename,
+                        'content': content,
+                        'ext': ext
+                    }
+                except:
+                    abort(400, 'Cannot read file as text')
+            except PermissionError:
+                abort(403, 'Permission Denied')
+        
+        elif ext in image_extensions:
+            return {
+                'type': 'image',
+                'filename': filename,
+                'url': '/' + file_path,
+                'ext': ext
+            }
+        
+        elif ext in audio_extensions:
+            return {
+                'type': 'audio',
+                'filename': filename,
+                'url': '/' + file_path,
+                'ext': ext
+            }
+        
+        elif ext in video_extensions:
+            return {
+                'type': 'video',
+                'filename': filename,
+                'url': '/' + file_path,
+                'ext': ext
+            }
+        
+        else:
+            abort(400, 'File type not supported for preview')
+
+    #############################
+    # File Save Functionality
+    #############################
+    @app.route('/api/save', methods=['POST'])
+    @auth.login_required
+    def api_save():
+        if request.method == 'POST':
+            data = request.get_json()
+            if not data or 'path' not in data or 'content' not in data:
+                return {'success': False, 'error': 'Invalid request'}, 400
+            
+            rel_path = data['path'].lstrip('/').replace('/', os.sep)
+            path = os.path.join(base_directory, rel_path)
+            
+            if not is_valid_subpath(rel_path, base_directory):
+                return {'success': False, 'error': 'Access denied'}, 403
+            
+            try:
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write(data['content'])
+                return {'success': True}
+            except PermissionError:
+                return {'success': False, 'error': 'Permission denied'}, 403
+            except Exception as e:
+                return {'success': False, 'error': str(e)}, 500
 
     # Password functionality is without username
     users = {

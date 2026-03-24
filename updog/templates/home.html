@@ -1,47 +1,61 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Meta tags -->
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <!-- Title -->
-    <title>updog - {{ directory }}</title>
-    <!-- Stylesheets -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>updog - {{ rel_path }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome-5.1/css/all.min.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/datatable/datatables.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.min.css') }}">
 </head>
-
 <body>
-<div class="conn">
-
-    <!-- Header -->
-    <header id="header" class="d-flex align_item_center">
-        <div onclick="document.location='/'" class="logo_p">
-            <img src="{{ url_for('static', filename='images/updog.png') }}" alt="updog">
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+        <div class="nav-brand" onclick="location.href='/'">
+            <img src="{{ url_for('static', filename='images/updog.png') }}" alt="updog" class="logo-img">
+            <span class="logo-text">updog</span>
         </div>
-
-        <div class="heading_title_p">
-            <h2>Directory: {{ directory }}</h2>
+        <div class="nav-path">
+            <span class="path-label">Directory:</span>
+            <span class="path-value">{{ rel_path }}</span>
         </div>
-    </header>
+        <div class="nav-storage">
+            <div class="storage-bar-container">
+                <div class="storage-bar">
+                    <div class="storage-fill" style="width: {{ ((disk_total - disk_free) / disk_total * 100) | round(1) }}%"></div>
+                </div>
+                <span class="storage-text">{{ ((disk_total - disk_free) / 1024 / 1024 / 1024) | round(1) }} GB / {{ (disk_total / 1024 / 1024 / 1024) | round(1) }} GB used</span>
+            </div>
+        </div>
+    </nav>
 
-    <!-- ----- Upload Form ----- -->
-    <div class="inputUploadP">
+    <!-- Action Bar -->
+    <div class="action-bar">
+        {% if is_subdirectory %}
+        <a href="/{{ back }}" class="btn btn-back">
+            <i class="fas fa-arrow-left"></i>
+            <span>Back</span>
+        </a>
+        {% endif %}
+        <div class="action-right">
+            <button class="btn btn-new" onclick="showMkdirModal()">
+                <i class="fas fa-folder-plus"></i>
+                <span>New Folder</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Original Upload Form (Preserved) -->
+    <div class="upload-section">
         <form method="post" action="/upload" enctype="multipart/form-data" class="uploadForm">
-            <!-- -- Upload File -- -->
             <div class="uploadFile_P">
-                <input type="file" name="file" id="file" class="uploadFile"
-                       data-multiple-caption="{count} files selected" multiple/>
+                <input type="file" name="file" id="file" class="uploadFile" data-multiple-caption="{count} files selected" multiple/>
                 <label for="file">
                     <i class="fa fa-upload"></i>
                     <span>Choose a file…</span>
                 </label>
                 <input type="hidden" name="path" value="{{ directory }}">
             </div>
-            <!-- -- Upload Btn -- -->
             <p class="uploadBtn_P">
                 <button type="submit" class="uploadBtn btn btn-primary">
                     Upload
@@ -50,70 +64,1197 @@
         </form>
     </div>
 
-    {% if is_subdirectory %}
-    <section class="backBtn_p">
-        <a href="/{{ back }}">
-            <i class="fas fa-level-up-alt"></i>
-            <span>Back</span>
-        </a>
-    </section>
-    {% endif %}
-
-    <!-- Table -->
-    <section class="table_p table-responsive">
-        <table id="tableData" class="table table-hover compact">
-            <thead>
-            <tr>
-                <th width="4%"><!--Type (Directory or File)--></th>
-                <th>Name</th>
-                <th>Size</th>
-                <th>Last Modified</th>
-                <th></th> <!-- View file -->
-            </tr>
-            </thead>
-            <tbody>
+    <!-- File Grid -->
+    <div class="content">
+        {% if files %}
+        <div class="file-grid">
             {% for file in files %}
-            <tr>
-                <td> <!-- Icon -->
-                    {% if file.is_dir %}
-                    <button class="file_ic"><i class="far fa-folder"></i></button><!-- Directory icon -->
-                    {% else %}
-                    <button class="file_ic"><i class="far fa-file"></i></button><!-- File icon -->
-                    {% endif %}
-                </td>
-                <td> <!-- Name -->
-                    <a href="/{{ file.rel_path }}">{{ file.name }}{% if file.is_dir %}/{% endif %}</a>
-                </td>
-                <td data-order="{{ file.size_sort }}"> <!-- File size -->
-                    {{ file.size }}
-                </td>
-                <td data-order="{{ file.last_modified_sort }}"> <!-- File last modified -->
-                    {{ file.last_modified }}
-                </td>
-                <td> <!-- View file -->
-                    {% if not file.is_dir %}
-                    <a href="/{{ file.rel_path }}?view">View in browser</a>
-                    {% endif %}
-                </td>
-            </tr>
+            <div class="file-card">
+                <a href="/{{ file.rel_path }}" class="card-link" {% if not file.is_dir %}target="_blank"{% endif %}>
+                    <div class="card-icon {{ 'folder' if file.is_dir else 'file' }}">
+                        <i class="fas {{ 'fa-folder' if file.is_dir else 'fa-file' }}"></i>
+                    </div>
+                    <div class="card-name" title="{{ file.name }}">{{ file.name }}</div>
+                    <div class="card-meta">{{ file.size }}</div>
+                </a>
+                <button class="btn-delete" onclick="showDeleteModal('/{{ file.rel_path }}', '{{ file.name }}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
             {% endfor %}
-            </tbody>
-        </table>
-    </section>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">
+                <i class="fas fa-cloud-upload-alt"></i>
+            </div>
+            <p>Drop files here or use the upload button</p>
+        </div>
+        {% endif %}
+    </div>
 
-    <footer>
-        <p>
-            updog v{{ version }}
-        </p>
-    </footer>
+    <!-- New Folder Modal -->
+    <div class="modal-overlay" id="mkdir-modal">
+        <div class="modal-box">
+            <h3>Create New Folder</h3>
+            <form method="post" action="/api/mkdir" class="modal-form">
+                <input type="hidden" name="path" value="{{ directory }}">
+                <input type="text" name="name" placeholder="Folder name" class="modal-input" required autofocus>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-cancel" onclick="hideMkdirModal()">Cancel</button>
+                    <button type="submit" class="btn btn-confirm">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-</div> <!-- end class conn -->
+    <!-- Delete Modal -->
+    <div class="modal-overlay" id="delete-modal">
+        <div class="modal-box">
+            <div class="modal-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3>Delete Item</h3>
+            <p>Are you sure you want to delete <strong id="delete-name"></strong>?</p>
+            <p class="modal-hint">This action cannot be undone.</p>
+            <form method="post" action="/api/delete" class="modal-form">
+                <input type="hidden" name="path" id="delete-path">
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-cancel" onclick="hideDeleteModal()">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-<!-- Scripts -->
-<script src="{{ url_for('static', filename='js/jquery-3.7.1.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='vendor/datatable/datatables.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <!-- Upload Notifications -->
+    <div class="notification-container" id="notification-container"></div>
 
+    <!-- Preview Modal -->
+    <div class="modal-overlay" id="preview-modal">
+        <div class="preview-box">
+            <div class="preview-header">
+                <div class="preview-title">
+                    <i class="fas fa-file-code" id="preview-icon"></i>
+                    <span id="preview-filename">filename.txt</span>
+                </div>
+                <div class="preview-actions">
+                    <button class="btn btn-cancel" id="preview-download" title="Download">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    <button class="btn btn-confirm" id="preview-save" style="display: none;">
+                        <i class="fas fa-save"></i>
+                        <span>Save</span>
+                    </button>
+                    <button class="btn btn-cancel" onclick="hidePreviewModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="preview-content" id="preview-content">
+                <!-- Content loaded dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Media Viewer (Image/Video/Audio) -->
+    <div class="media-viewer" id="media-viewer">
+        <div class="media-backdrop" onclick="hideMediaViewer()"></div>
+        <button class="media-close" onclick="hideMediaViewer()">
+            <i class="fas fa-times"></i>
+        </button>
+        <div class="media-container" id="media-container">
+            <!-- Media content loaded dynamically -->
+        </div>
+        <div class="media-info" id="media-info">
+            <span id="media-filename">filename.jpg</span>
+        </div>
+    </div>
+
+    <script>
+        // File type definitions
+        const FILE_TYPES = {
+            text: ['.txt', '.md', '.json', '.jsonl', '.py', '.java', '.js', '.ts', '.html', '.css', '.scss', '.xml', '.yaml', '.yml', '.ini', '.cfg', '.conf', '.sh', '.bat', '.cmd', '.ps1', '.rs', '.go', '.c', '.cpp', '.h', '.hpp', '.cs', '.rb', '.php', '.sql', '.log'],
+            image: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico'],
+            audio: ['.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac'],
+            video: ['.mp4', '.webm', '.mov', '.avi', '.mkv']
+        };
+
+        function getFileType(filename) {
+            const ext = '.' + filename.split('.').pop().toLowerCase();
+            for (const [type, exts] of Object.entries(FILE_TYPES)) {
+                if (exts.includes(ext)) return type;
+            }
+            return null;
+        }
+
+        function getFileIcon(type) {
+            const icons = {
+                text: 'fa-file-code',
+                image: 'fa-file-image',
+                audio: 'fa-file-audio',
+                video: 'fa-file-video'
+            };
+            return icons[type] || 'fa-file';
+        }
+
+        // Preview Modal
+        let currentPreviewPath = '';
+        let originalContent = '';
+        let isEdited = false;
+
+        function showPreviewModal(path, filename, type) {
+            currentPreviewPath = path;
+            document.getElementById('preview-filename').textContent = filename;
+            document.getElementById('preview-icon').className = 'fas ' + getFileIcon(type);
+            document.getElementById('preview-save').style.display = type === 'text' ? 'inline-flex' : 'none';
+            document.getElementById('preview-download').href = path;
+            document.getElementById('preview-download').download = filename;
+            document.getElementById('preview-content').innerHTML = '<div class="preview-loading"><i class="fas fa-spinner fa-spin"></i><span>Loading...</span></div>';
+            document.getElementById('preview-modal').classList.add('show');
+
+            fetch('/api/preview' + path)
+                .then(res => res.json())
+                .then(data => {
+                    if (type === 'text') {
+                        originalContent = data.content;
+                        isEdited = false;
+                        document.getElementById('preview-content').innerHTML = `
+                            <textarea class="preview-editor" id="preview-editor" spellcheck="false">${escapeHtml(data.content)}</textarea>
+                        `;
+                        document.getElementById('preview-editor').addEventListener('input', function() {
+                            isEdited = this.value !== originalContent;
+                            document.getElementById('preview-save').classList.toggle('btn-danger', isEdited);
+                        });
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('preview-content').innerHTML = '<div class="preview-error"><i class="fas fa-exclamation-circle"></i><span>Failed to load file</span></div>';
+                });
+        }
+
+        function hidePreviewModal() {
+            if (isEdited) {
+                if (!confirm('You have unsaved changes. Close anyway?')) return;
+            }
+            document.getElementById('preview-modal').classList.remove('show');
+            currentPreviewPath = '';
+            originalContent = '';
+            isEdited = false;
+        }
+
+        function savePreviewContent() {
+            const content = document.getElementById('preview-editor').value;
+            const saveBtn = document.getElementById('preview-save');
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Saving...</span>';
+
+            fetch('/api/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: currentPreviewPath, content: content })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    originalContent = content;
+                    isEdited = false;
+                    saveBtn.classList.remove('btn-danger');
+                    saveBtn.innerHTML = '<i class="fas fa-check"></i><span>Saved</span>';
+                    setTimeout(() => {
+                        saveBtn.innerHTML = '<i class="fas fa-save"></i><span>Save</span>';
+                        saveBtn.disabled = false;
+                    }, 1500);
+                } else {
+                    alert('Save failed: ' + (data.error || 'Unknown error'));
+                    saveBtn.innerHTML = '<i class="fas fa-save"></i><span>Save</span>';
+                    saveBtn.disabled = false;
+                }
+            })
+            .catch(err => {
+                alert('Save failed: Network error');
+                saveBtn.innerHTML = '<i class="fas fa-save"></i><span>Save</span>';
+                saveBtn.disabled = false;
+            });
+        }
+
+        document.getElementById('preview-save').addEventListener('click', savePreviewContent);
+
+        // Media Viewer
+        let currentAudioContext = null;
+        let currentAnalyser = null;
+        let currentAudioSource = null;
+        let animationFrameId = null;
+
+        function showMediaViewer(path, filename, type, mediaFiles) {
+            const container = document.getElementById('media-container');
+            document.getElementById('media-filename').textContent = filename;
+
+            if (type === 'image') {
+                container.innerHTML = `<img src="${path}" alt="${filename}" class="media-image">`;
+            } else if (type === 'video') {
+                showVideoPlayer(path, filename);
+            } else if (type === 'audio') {
+                showAudioPlayer(path, filename, mediaFiles);
+            }
+
+            document.getElementById('media-viewer').classList.add('show');
+        }
+
+        // Custom Video Player
+        function showVideoPlayer(path, filename) {
+            const container = document.getElementById('media-container');
+            const videoId = 'video-player-' + Date.now();
+            
+            container.innerHTML = `
+                <div class="video-player-custom">
+                    <div class="video-wrap">
+                        <video id="${videoId}" src="${path}" preload="auto"></video>
+                        <div class="video-overlay" id="video-overlay">
+                            <div class="video-big-play" id="video-big-play">
+                                <i class="fas fa-play"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="video-controls">
+                        <div class="video-progress-wrap">
+                            <div class="video-progress" id="video-progress">
+                                <div class="video-progress-buffer" id="video-progress-buffer"></div>
+                                <div class="video-progress-bar" id="video-progress-bar"></div>
+                                <div class="video-progress-handle" id="video-progress-handle"></div>
+                            </div>
+                        </div>
+                        <div class="video-actions">
+                            <div class="video-left-controls">
+                                <button class="video-btn video-btn-play" id="video-play" title="Play/Pause">
+                                    <i class="fas fa-play"></i>
+                                </button>
+                                <span class="video-time" id="video-current-time">0:00</span>
+                                <span class="video-time-sep">/</span>
+                                <span class="video-time" id="video-duration">0:00</span>
+                            </div>
+                            <div class="video-right-controls">
+                                <div class="video-quality-wrap">
+                                    <button class="video-btn" id="video-quality-btn" title="Quality">
+                                        <span id="video-quality-label">Auto</span>
+                                    </button>
+                                    <div class="video-quality-menu" id="video-quality-menu">
+                                        <div class="video-quality-item" data-quality="auto">Auto</div>
+                                    </div>
+                                </div>
+                                <div class="video-speed-wrap">
+                                    <button class="video-btn" id="video-speed-btn" title="Speed">
+                                        <span id="video-speed-label">1x</span>
+                                    </button>
+                                    <div class="video-speed-menu" id="video-speed-menu">
+                                        <div class="video-speed-item" data-speed="0.5">0.5x</div>
+                                        <div class="video-speed-item" data-speed="0.75">0.75x</div>
+                                        <div class="video-speed-item active" data-speed="1">1x</div>
+                                        <div class="video-speed-item" data-speed="1.25">1.25x</div>
+                                        <div class="video-speed-item" data-speed="1.5">1.5x</div>
+                                        <div class="video-speed-item" data-speed="2">2x</div>
+                                    </div>
+                                </div>
+                                <div class="video-volume-wrap">
+                                    <button class="video-btn" id="video-volume-btn" title="Volume">
+                                        <i class="fas fa-volume-up"></i>
+                                    </button>
+                                    <div class="video-volume-slider" id="video-volume-slider">
+                                        <div class="video-volume-bar" id="video-volume-bar"></div>
+                                    </div>
+                                </div>
+                                <button class="video-btn" id="video-fullscreen" title="Fullscreen">
+                                    <i class="fas fa-expand"></i>
+                                </button>
+                                <a href="${path}" download="${filename}" class="video-btn" title="Download">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="video-info-bar">
+                        <span class="video-filename">${filename}</span>
+                        <span class="video-resolution" id="video-resolution"></span>
+                    </div>
+                </div>
+            `;
+
+            const video = document.getElementById(videoId);
+            const playBtn = document.getElementById('video-play');
+            const bigPlayBtn = document.getElementById('video-big-play');
+            const overlay = document.getElementById('video-overlay');
+            const progressBar = document.getElementById('video-progress-bar');
+            const bufferBar = document.getElementById('video-progress-buffer');
+            const progressHandle = document.getElementById('video-progress-handle');
+            const progressContainer = document.getElementById('video-progress');
+            const currentTimeEl = document.getElementById('video-current-time');
+            const durationEl = document.getElementById('video-duration');
+            const volumeBtn = document.getElementById('video-volume-btn');
+            const volumeSlider = document.getElementById('video-volume-slider');
+            const volumeBar = document.getElementById('video-volume-bar');
+            const fullscreenBtn = document.getElementById('video-fullscreen');
+            const qualityBtn = document.getElementById('video-quality-btn');
+            const qualityMenu = document.getElementById('video-quality-menu');
+            const qualityLabel = document.getElementById('video-quality-label');
+            const speedBtn = document.getElementById('video-speed-btn');
+            const speedMenu = document.getElementById('video-speed-menu');
+            const speedLabel = document.getElementById('video-speed-label');
+            const resolutionEl = document.getElementById('video-resolution');
+            const playerEl = container.querySelector('.video-player-custom');
+
+            // Format time
+            function formatTime(seconds) {
+                if (isNaN(seconds)) return '0:00';
+                const hrs = Math.floor(seconds / 3600);
+                const mins = Math.floor((seconds % 3600) / 60);
+                const secs = Math.floor(seconds % 60);
+                if (hrs > 0) {
+                    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                }
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            }
+
+            // Get quality label
+            function getQualityLabel(width) {
+                if (width >= 7680) return '8K';
+                if (width >= 3840) return '4K';
+                if (width >= 2560) return '2K';
+                if (width >= 1920) return '1080p';
+                if (width >= 1280) return '720p';
+                if (width >= 640) return '480p';
+                return '360p';
+            }
+
+            // Update progress
+            function updateProgress() {
+                const percent = (video.currentTime / video.duration) * 100 || 0;
+                progressBar.style.width = percent + '%';
+                progressHandle.style.left = percent + '%';
+                currentTimeEl.textContent = formatTime(video.currentTime);
+            }
+
+            // Update buffer
+            function updateBuffer() {
+                if (video.buffered.length > 0) {
+                    const buffered = video.buffered.end(video.buffered.length - 1);
+                    const percent = (buffered / video.duration) * 100 || 0;
+                    bufferBar.style.width = percent + '%';
+                }
+            }
+
+            // Toggle play
+            function togglePlay() {
+                if (video.paused) {
+                    video.play();
+                    playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                    bigPlayBtn.style.display = 'none';
+                } else {
+                    video.pause();
+                    playBtn.innerHTML = '<i class="fas fa-play"></i>';
+                }
+            }
+
+            playBtn.addEventListener('click', togglePlay);
+            bigPlayBtn.addEventListener('click', togglePlay);
+            video.addEventListener('click', togglePlay);
+
+            // Seek
+            let isDragging = false;
+            progressContainer.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                const rect = progressContainer.getBoundingClientRect();
+                const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                video.currentTime = percent * video.duration;
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const rect = progressContainer.getBoundingClientRect();
+                const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                video.currentTime = percent * video.duration;
+            });
+            document.addEventListener('mouseup', () => isDragging = false);
+
+            // Volume
+            let volume = 0.8;
+            video.volume = volume;
+            volumeBar.style.height = (volume * 100) + '%';
+
+            volumeSlider.addEventListener('click', (e) => {
+                const rect = volumeSlider.getBoundingClientRect();
+                volume = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+                video.volume = volume;
+                volumeBar.style.height = (volume * 100) + '%';
+                updateVolumeIcon();
+            });
+
+            volumeBtn.addEventListener('click', () => {
+                if (video.volume > 0) {
+                    video.volume = 0;
+                    volumeBar.style.height = '0%';
+                } else {
+                    video.volume = volume || 0.8;
+                    volumeBar.style.height = ((volume || 0.8) * 100) + '%';
+                }
+                updateVolumeIcon();
+            });
+
+            function updateVolumeIcon() {
+                const icon = volumeBtn.querySelector('i');
+                if (video.volume === 0) {
+                    icon.className = 'fas fa-volume-mute';
+                } else if (video.volume < 0.5) {
+                    icon.className = 'fas fa-volume-down';
+                } else {
+                    icon.className = 'fas fa-volume-up';
+                }
+            }
+
+            // Fullscreen
+            fullscreenBtn.addEventListener('click', () => {
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                    fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+                } else {
+                    playerEl.requestFullscreen();
+                    fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i>';
+                }
+            });
+
+            document.addEventListener('fullscreenchange', () => {
+                if (!document.fullscreenElement) {
+                    fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+                }
+            });
+
+            // Speed
+            speedBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                speedMenu.classList.toggle('show');
+                qualityMenu.classList.remove('show');
+            });
+
+            speedMenu.querySelectorAll('.video-speed-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    const speed = parseFloat(item.dataset.speed);
+                    video.playbackRate = speed;
+                    speedLabel.textContent = speed + 'x';
+                    speedMenu.querySelectorAll('.video-speed-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    speedMenu.classList.remove('show');
+                });
+            });
+
+            // Quality (display resolution info)
+            qualityBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                qualityMenu.classList.toggle('show');
+                speedMenu.classList.remove('show');
+            });
+
+            // Events
+            video.addEventListener('timeupdate', updateProgress);
+            video.addEventListener('progress', updateBuffer);
+            video.addEventListener('loadedmetadata', () => {
+                durationEl.textContent = formatTime(video.duration);
+                const quality = getQualityLabel(video.videoWidth);
+                resolutionEl.textContent = quality + ' (' + video.videoWidth + 'x' + video.videoHeight + ')';
+                qualityLabel.textContent = quality;
+            });
+            video.addEventListener('ended', () => {
+                playBtn.innerHTML = '<i class="fas fa-play"></i>';
+                bigPlayBtn.style.display = 'flex';
+            });
+            video.addEventListener('play', () => {
+                playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                bigPlayBtn.style.display = 'none';
+            });
+            video.addEventListener('pause', () => {
+                playBtn.innerHTML = '<i class="fas fa-play"></i>';
+            });
+
+            // Close menus on outside click
+            document.addEventListener('click', () => {
+                qualityMenu.classList.remove('show');
+                speedMenu.classList.remove('show');
+            });
+
+            // Double click for fullscreen
+            video.addEventListener('dblclick', () => {
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                } else {
+                    playerEl.requestFullscreen();
+                }
+            });
+
+            // Auto play
+            video.play().then(() => {
+                playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                bigPlayBtn.style.display = 'none';
+            }).catch(() => {
+                bigPlayBtn.style.display = 'flex';
+            });
+        }
+
+        // Custom Audio Player
+        let currentAudioFiles = [];
+        let currentAudioIndex = 0;
+
+        async function showAudioPlayer(path, filename, audioFiles) {
+            const container = document.getElementById('media-container');
+            const audioId = 'audio-player-' + Date.now();
+            
+            // Store audio files list and find current index
+            currentAudioFiles = audioFiles || [{ path, filename }];
+            currentAudioIndex = currentAudioFiles.findIndex(f => f.path === path);
+            if (currentAudioIndex === -1) currentAudioIndex = 0;
+            
+            const currentFile = currentAudioFiles[currentAudioIndex];
+            
+            container.innerHTML = `
+                <div class="audio-player-custom">
+                    <div class="audio-main">
+                        <div class="audio-cover-wrap">
+                            <div class="audio-cover" id="audio-cover">
+                                <i class="fas fa-music audio-cover-icon"></i>
+                            </div>
+                        </div>
+                        <div class="audio-visualizer-wrap">
+                            <canvas class="audio-visualizer" id="audio-visualizer"></canvas>
+                        </div>
+                    </div>
+                    <div class="audio-info-row">
+                        <span class="audio-title" id="audio-title">${currentFile.filename}</span>
+                    </div>
+                    <div class="audio-controls">
+                        <div class="audio-progress-wrap">
+                            <span class="audio-time" id="audio-current-time">0:00</span>
+                            <div class="audio-progress" id="audio-progress">
+                                <div class="audio-progress-bar" id="audio-progress-bar"></div>
+                                <div class="audio-progress-handle" id="audio-progress-handle"></div>
+                            </div>
+                            <span class="audio-time" id="audio-duration">0:00</span>
+                        </div>
+                        <div class="audio-actions">
+                            <button class="audio-btn" id="audio-prev" title="Previous">
+                                <i class="fas fa-backward"></i>
+                            </button>
+                            <button class="audio-btn audio-btn-play" id="audio-play" title="Play/Pause">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button class="audio-btn" id="audio-next" title="Next">
+                                <i class="fas fa-forward"></i>
+                            </button>
+                            <div class="audio-volume-wrap">
+                                <button class="audio-btn" id="audio-volume-btn" title="Volume">
+                                    <i class="fas fa-volume-up"></i>
+                                </button>
+                                <div class="audio-volume-slider" id="audio-volume-slider">
+                                    <div class="audio-volume-bar" id="audio-volume-bar"></div>
+                                </div>
+                            </div>
+                            <a href="${currentFile.path}" download="${currentFile.filename}" class="audio-btn" id="audio-download" title="Download">
+                                <i class="fas fa-download"></i>
+                            </a>
+                        </div>
+                    </div>
+                    <audio id="${audioId}" src="${currentFile.path}" preload="auto"></audio>
+                </div>
+            `;
+
+            const audio = document.getElementById(audioId);
+            const playBtn = document.getElementById('audio-play');
+            const prevBtn = document.getElementById('audio-prev');
+            const nextBtn = document.getElementById('audio-next');
+            const progressBar = document.getElementById('audio-progress-bar');
+            const progressHandle = document.getElementById('audio-progress-handle');
+            const progressContainer = document.getElementById('audio-progress');
+            const currentTimeEl = document.getElementById('audio-current-time');
+            const durationEl = document.getElementById('audio-duration');
+            const volumeBtn = document.getElementById('audio-volume-btn');
+            const volumeSlider = document.getElementById('audio-volume-slider');
+            const volumeBar = document.getElementById('audio-volume-bar');
+            const coverEl = document.getElementById('audio-cover');
+            const canvas = document.getElementById('audio-visualizer');
+            const ctx = canvas.getContext('2d');
+            const titleEl = document.getElementById('audio-title');
+            const downloadBtn = document.getElementById('audio-download');
+
+            // Update download link
+            function updateDownloadLink() {
+                const file = currentAudioFiles[currentAudioIndex];
+                downloadBtn.href = file.path;
+                downloadBtn.setAttribute('download', file.filename);
+            }
+
+            // Load track
+            async function loadTrack(index) {
+                // Stop current playback first
+                audio.pause();
+                audio.currentTime = 0;
+                
+                currentAudioIndex = index;
+                const file = currentAudioFiles[index];
+                audio.src = file.path;
+                titleEl.textContent = file.filename;
+                document.getElementById('media-filename').textContent = file.filename;
+                updateDownloadLink();
+                
+                // Reset cover
+                coverEl.innerHTML = '<i class="fas fa-music audio-cover-icon"></i>';
+                
+                // Try to extract cover
+                try {
+                    const cover = await extractAudioCover(file.path);
+                    if (cover) {
+                        coverEl.innerHTML = `<img src="${cover}" class="audio-cover-img">`;
+                    }
+                } catch (e) {
+                    console.log('Could not extract cover:', e);
+                }
+                
+                // Update prev/next button states
+                prevBtn.style.opacity = currentAudioIndex > 0 ? '1' : '0.5';
+                nextBtn.style.opacity = currentAudioIndex < currentAudioFiles.length - 1 ? '1' : '0.5';
+            }
+
+            // Play track
+            function playTrack() {
+                audio.play().then(() => {
+                    playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                    initAudioVisualization(audio, canvas, ctx);
+                }).catch((e) => {
+                    console.error('playTrack failed:', e);
+                    playBtn.innerHTML = '<i class="fas fa-play"></i>';
+                });
+            }
+
+            // Previous track
+            prevBtn.addEventListener('click', async () => {
+                if (currentAudioIndex > 0) {
+                    await loadTrack(currentAudioIndex - 1);
+                    playTrack();
+                }
+            });
+
+            // Next track
+            nextBtn.addEventListener('click', async () => {
+                if (currentAudioIndex < currentAudioFiles.length - 1) {
+                    await loadTrack(currentAudioIndex + 1);
+                    playTrack();
+                }
+            });
+
+            // Format time
+            function formatTime(seconds) {
+                if (isNaN(seconds)) return '0:00';
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            }
+
+            // Update progress
+            function updateProgress() {
+                const percent = (audio.currentTime / audio.duration) * 100 || 0;
+                progressBar.style.width = percent + '%';
+                progressHandle.style.left = percent + '%';
+                currentTimeEl.textContent = formatTime(audio.currentTime);
+            }
+
+            // Play/Pause
+            playBtn.addEventListener('click', async () => {
+                if (audio.paused) {
+                    try {
+                        await audio.play();
+                        playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                        initAudioVisualization(audio, canvas, ctx);
+                    } catch (e) {
+                        console.error('Play failed:', e);
+                        playBtn.innerHTML = '<i class="fas fa-play"></i>';
+                    }
+                } else {
+                    audio.pause();
+                    playBtn.innerHTML = '<i class="fas fa-play"></i>';
+                }
+            });
+
+            // Seek
+            let isDragging = false;
+            progressContainer.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                const rect = progressContainer.getBoundingClientRect();
+                const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                audio.currentTime = percent * audio.duration;
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const rect = progressContainer.getBoundingClientRect();
+                const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                audio.currentTime = percent * audio.duration;
+            });
+            document.addEventListener('mouseup', () => isDragging = false);
+
+            // Volume
+            let volume = 0.8;
+            audio.volume = volume;
+            volumeBar.style.width = (volume * 100) + '%';
+
+            volumeSlider.addEventListener('click', (e) => {
+                const rect = volumeSlider.getBoundingClientRect();
+                volume = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                audio.volume = volume;
+                volumeBar.style.width = (volume * 100) + '%';
+                updateVolumeIcon();
+            });
+
+            volumeBtn.addEventListener('click', () => {
+                if (audio.volume > 0) {
+                    audio.volume = 0;
+                    volumeBar.style.width = '0%';
+                } else {
+                    audio.volume = volume || 0.8;
+                    volumeBar.style.width = ((volume || 0.8) * 100) + '%';
+                }
+                updateVolumeIcon();
+            });
+
+            function updateVolumeIcon() {
+                const icon = volumeBtn.querySelector('i');
+                if (audio.volume === 0) {
+                    icon.className = 'fas fa-volume-mute';
+                } else if (audio.volume < 0.5) {
+                    icon.className = 'fas fa-volume-down';
+                } else {
+                    icon.className = 'fas fa-volume-up';
+                }
+            }
+
+            // Events
+            audio.addEventListener('timeupdate', updateProgress);
+            audio.addEventListener('loadedmetadata', () => {
+                durationEl.textContent = formatTime(audio.duration);
+            });
+            audio.addEventListener('ended', async () => {
+                playBtn.innerHTML = '<i class="fas fa-play"></i>';
+                // Auto play next track
+                if (currentAudioIndex < currentAudioFiles.length - 1) {
+                    await loadTrack(currentAudioIndex + 1);
+                    playTrack();
+                }
+            });
+
+            // Extract cover art
+            try {
+                const cover = await extractAudioCover(currentFile.path);
+                if (cover) {
+                    coverEl.innerHTML = `<img src="${cover}" class="audio-cover-img">`;
+                }
+            } catch (e) {
+                console.log('Could not extract cover:', e);
+            }
+
+            // Set initial button states
+            prevBtn.style.opacity = currentAudioIndex > 0 ? '1' : '0.5';
+            nextBtn.style.opacity = currentAudioIndex < currentAudioFiles.length - 1 ? '1' : '0.5';
+
+            // Auto play
+            audio.play().then(() => {
+                playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                initAudioVisualization(audio, canvas, ctx);
+            }).catch(() => {});
+        }
+
+        // Extract cover from audio file
+        async function extractAudioCover(url) {
+            const response = await fetch(url);
+            const arrayBuffer = await response.arrayBuffer();
+            const dataView = new DataView(arrayBuffer);
+            
+            // Check for ID3v2 (MP3)
+            if (dataView.getUint8(0) === 0x49 && dataView.getUint8(1) === 0x44 && dataView.getUint8(2) === 0x33) {
+                return extractID3Cover(arrayBuffer);
+            }
+            
+            // Check for FLAC
+            const flacHeader = String.fromCharCode(...new Uint8Array(arrayBuffer, 0, 4));
+            if (flacHeader === 'fLaC') {
+                return extractFlacCover(arrayBuffer);
+            }
+            
+            return null;
+        }
+
+        function extractID3Cover(arrayBuffer) {
+            const dataView = new DataView(arrayBuffer);
+            let offset = 10;
+            const id3Size = ((dataView.getUint8(6) & 0x7f) << 21) | 
+                           ((dataView.getUint8(7) & 0x7f) << 14) | 
+                           ((dataView.getUint8(8) & 0x7f) << 7) | 
+                           (dataView.getUint8(9) & 0x7f);
+            
+            while (offset < 10 + id3Size) {
+                const frameId = String.fromCharCode(
+                    dataView.getUint8(offset), 
+                    dataView.getUint8(offset + 1), 
+                    dataView.getUint8(offset + 2), 
+                    dataView.getUint8(offset + 3)
+                );
+                
+                if (frameId === '\x00\x00\x00\x00') break;
+                
+                const frameSize = (dataView.getUint8(offset + 4) << 24) | 
+                                 (dataView.getUint8(offset + 5) << 16) | 
+                                 (dataView.getUint8(offset + 6) << 8) | 
+                                 dataView.getUint8(offset + 7);
+                
+                if (frameId === 'APIC' || frameId === 'PIC') {
+                    const data = new Uint8Array(arrayBuffer, offset + 10, frameSize);
+                    let i = 1;
+                    while (data[i] !== 0 && i < 50) i++;
+                    const mimeType = String.fromCharCode(...data.slice(1, i));
+                    i++;
+                    const pictureType = data[i];
+                    i++;
+                    while (data[i] !== 0 && i < 200) i++;
+                    i++;
+                    const imageData = data.slice(i);
+                    const blob = new Blob([imageData], { type: mimeType.includes('png') ? 'image/png' : 'image/jpeg' });
+                    return URL.createObjectURL(blob);
+                }
+                
+                offset += 10 + frameSize;
+            }
+            return null;
+        }
+
+        function extractFlacCover(arrayBuffer) {
+            const data = new Uint8Array(arrayBuffer);
+            let offset = 4;
+            
+            while (offset < data.length - 4) {
+                const blockType = data[offset] & 0x7f;
+                const isLast = (data[offset] & 0x80) !== 0;
+                const blockSize = (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3];
+                
+                if (blockType === 6) { // PICTURE block
+                    let i = offset + 4;
+                    const picType = (data[i] << 24) | (data[i + 1] << 16) | (data[i + 2] << 8) | data[i + 3];
+                    i += 4;
+                    const mimeLen = (data[i] << 24) | (data[i + 1] << 16) | (data[i + 2] << 8) | data[i + 3];
+                    i += 4;
+                    const mimeType = String.fromCharCode(...data.slice(i, i + mimeLen));
+                    i += mimeLen;
+                    const descLen = (data[i] << 24) | (data[i + 1] << 16) | (data[i + 2] << 8) | data[i + 3];
+                    i += 4 + descLen;
+                    i += 4 + 4 + 4 + 4;
+                    const imgLen = (data[i] << 24) | (data[i + 1] << 16) | (data[i + 2] << 8) | data[i + 3];
+                    i += 4;
+                    const imageData = data.slice(i, i + imgLen);
+                    const blob = new Blob([imageData], { type: mimeType || 'image/jpeg' });
+                    return URL.createObjectURL(blob);
+                }
+                
+                offset += 4 + blockSize;
+                if (isLast) break;
+            }
+            return null;
+        }
+
+        // Audio Visualization
+        let visualizationInitialized = false;
+        
+        function initAudioVisualization(audio, canvas, ctx) {
+            // Only initialize visualization once per audio element
+            if (visualizationInitialized) {
+                // Just resume audio context if suspended
+                if (currentAudioContext && currentAudioContext.state === 'suspended') {
+                    currentAudioContext.resume();
+                }
+                return;
+            }
+            
+            if (!currentAudioContext) {
+                currentAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            
+            currentAnalyser = currentAudioContext.createAnalyser();
+            currentAnalyser.fftSize = 256;
+            
+            currentAudioSource = currentAudioContext.createMediaElementSource(audio);
+            currentAudioSource.connect(currentAnalyser);
+            currentAnalyser.connect(currentAudioContext.destination);
+            
+            visualizationInitialized = true;
+            
+            const bufferLength = currentAnalyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            function draw() {
+                if (!currentAnalyser) return;
+                animationFrameId = requestAnimationFrame(draw);
+                
+                currentAnalyser.getByteFrequencyData(dataArray);
+                
+                canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+                canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+                ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+                
+                const width = canvas.offsetWidth;
+                const height = canvas.offsetHeight;
+                
+                ctx.clearRect(0, 0, width, height);
+                
+                const barCount = 64;
+                const barWidth = width / barCount - 2;
+                const barSpacing = 2;
+                
+                for (let i = 0; i < barCount; i++) {
+                    const dataIndex = Math.floor(i * bufferLength / barCount);
+                    const barHeight = (dataArray[dataIndex] / 255) * height * 0.9;
+                    
+                    const x = i * (barWidth + barSpacing);
+                    const gradient = ctx.createLinearGradient(x, height - barHeight, x, height);
+                    gradient.addColorStop(0, '#58a6ff');
+                    gradient.addColorStop(1, '#79c0ff');
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.roundRect(x, height - barHeight, barWidth, barHeight, 2);
+                    ctx.fill();
+                }
+            }
+            
+            draw();
+        }
+
+        function hideMediaViewer() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            if (currentAudioSource) {
+                currentAudioSource.disconnect();
+                currentAudioSource = null;
+            }
+            currentAnalyser = null;
+            currentAudioContext = null;
+            visualizationInitialized = false;
+            
+            const container = document.getElementById('media-container');
+            const video = container.querySelector('video');
+            const audio = container.querySelector('audio');
+            if (video) video.pause();
+            if (audio) audio.pause();
+            container.innerHTML = '';
+            document.getElementById('media-viewer').classList.remove('show');
+        }
+
+        // Helper
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Modal handlers
+        function showMkdirModal() {
+            document.getElementById('mkdir-modal').classList.add('show');
+            document.querySelector('#mkdir-modal .modal-input').focus();
+        }
+        function hideMkdirModal() {
+            document.getElementById('mkdir-modal').classList.remove('show');
+        }
+        function showDeleteModal(path, name) {
+            document.getElementById('delete-path').value = path;
+            document.getElementById('delete-name').textContent = name;
+            document.getElementById('delete-modal').classList.add('show');
+        }
+        function hideDeleteModal() {
+            document.getElementById('delete-modal').classList.remove('show');
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                hideMkdirModal();
+                hideDeleteModal();
+                hidePreviewModal();
+                hideMediaViewer();
+            }
+        });
+
+        // Click outside to close
+        document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) {
+                    overlay.classList.remove('show');
+                }
+            });
+        });
+
+        // Initialize file card click handlers
+        document.querySelectorAll('.file-card').forEach(function(card) {
+            const link = card.querySelector('.card-link');
+            if (!link) return;
+
+            const href = link.getAttribute('href');
+            const nameEl = card.querySelector('.card-name');
+            if (!nameEl) return;
+
+            const filename = nameEl.getAttribute('title') || nameEl.textContent;
+            const fileType = getFileType(filename);
+
+            if (fileType) {
+                link.removeAttribute('target');
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (fileType === 'text') {
+                        showPreviewModal(href, filename, fileType);
+                    } else if (fileType === 'image' || fileType === 'video' || fileType === 'audio') {
+                        // Collect all files of the same type in current directory
+                        const mediaFiles = [];
+                        document.querySelectorAll('.file-card').forEach(function(c) {
+                            const cLink = c.querySelector('.card-link');
+                            const cNameEl = c.querySelector('.card-name');
+                            if (!cLink || !cNameEl) return;
+                            const cFilename = cNameEl.getAttribute('title') || cNameEl.textContent;
+                            const cFileType = getFileType(cFilename);
+                            if (cFileType === fileType) {
+                                mediaFiles.push({
+                                    path: cLink.getAttribute('href'),
+                                    filename: cFilename
+                                });
+                            }
+                        });
+                        showMediaViewer(href, filename, fileType, mediaFiles);
+                    }
+                });
+            }
+        });
+
+        // Upload Progress Notification System
+        (function() {
+            const container = document.getElementById('notification-container');
+            const form = document.querySelector('.uploadForm');
+            const fileInput = document.getElementById('file');
+
+            function formatSize(bytes) {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+            }
+
+            function createNotification(file, index) {
+                const id = 'notification-' + Date.now() + '-' + index;
+                const html = `
+                    <div class="notification" id="${id}">
+                        <div class="notification-header">
+                            <i class="fas fa-cloud-upload-alt notification-icon"></i>
+                            <span class="notification-filename">${file.name}</span>
+                            <span class="notification-size">${formatSize(file.size)}</span>
+                        </div>
+                        <div class="notification-progress-wrap">
+                            <div class="notification-progress-bar">
+                                <div class="notification-progress-fill" style="width: 0%"></div>
+                            </div>
+                            <span class="notification-percent">0%</span>
+                        </div>
+                        <div class="notification-status">Uploading...</div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', html);
+                return document.getElementById(id);
+            }
+
+            function updateProgress(notification, percent) {
+                const fill = notification.querySelector('.notification-progress-fill');
+                const percentText = notification.querySelector('.notification-percent');
+                fill.style.width = percent + '%';
+                percentText.textContent = Math.round(percent) + '%';
+            }
+
+            function setComplete(notification) {
+                notification.classList.add('complete');
+                notification.querySelector('.notification-icon').className = 'fas fa-check-circle notification-icon';
+                notification.querySelector('.notification-status').textContent = 'Upload complete';
+                notification.querySelector('.notification-progress-wrap').style.display = 'none';
+                setTimeout(() => {
+                    notification.classList.add('fade-out');
+                    setTimeout(() => notification.remove(), 400);
+                }, 2000);
+            }
+
+            function setError(notification) {
+                notification.classList.add('error');
+                notification.querySelector('.notification-icon').className = 'fas fa-times-circle notification-icon';
+                notification.querySelector('.notification-status').textContent = 'Upload failed';
+                notification.querySelector('.notification-progress-wrap').style.display = 'none';
+                setTimeout(() => {
+                    notification.classList.add('fade-out');
+                    setTimeout(() => notification.remove(), 400);
+                }, 3000);
+            }
+
+            function uploadFile(file, path) {
+                const notification = createNotification(file, Math.random().toString(36).substr(2, 9));
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('path', path);
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/upload');
+
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        const percent = (e.loaded / e.total) * 100;
+                        updateProgress(notification, percent);
+                    }
+                });
+
+                xhr.addEventListener('load', function() {
+                    if (xhr.status === 200 || xhr.status === 302) {
+                        setComplete(notification);
+                    } else {
+                        setError(notification);
+                    }
+                    checkAllComplete();
+                });
+
+                xhr.addEventListener('error', function() {
+                    setError(notification);
+                    checkAllComplete();
+                });
+
+                xhr.send(formData);
+            }
+
+            let pendingUploads = 0;
+            function checkAllComplete() {
+                pendingUploads--;
+                if (pendingUploads === 0) {
+                    setTimeout(() => location.reload(), 500);
+                }
+            }
+
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const files = fileInput.files;
+                const path = form.querySelector('input[name="path"]').value;
+                
+                if (!files || files.length === 0) return;
+
+                pendingUploads = files.length;
+                for (let i = 0; i < files.length; i++) {
+                    uploadFile(files[i], path);
+                }
+                
+                // Reset form
+                fileInput.value = '';
+                document.querySelector('label[for="file"] span').textContent = 'Choose a file…';
+            });
+        })();
+    </script>
 </body>
 </html>
