@@ -368,9 +368,8 @@ def main():
     @auth.verify_password
     def verify_password(username, password):
         if args.password:
-            if username in users:
-                return check_password_hash(users.get(username), password)
-            return False
+            # Accept any username, only verify password
+            return check_password_hash(users.get(''), password)
         else:
             return True
 
